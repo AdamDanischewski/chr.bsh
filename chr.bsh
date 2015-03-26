@@ -2,7 +2,7 @@
 
 #############################################################################
 ###########################################################################
-### Created by A.M.Danischewski (c) 2015+ v1.08
+### Created by A.M.Danischewski (c) 2015+ v1.09
 ### Issues: If you find any issues emai1 me at my <first name> dot 
 ###         <my last name> at gmail dot com.  
 ###
@@ -261,7 +261,8 @@ local ASCII_CMD="ascii"
 local ASCII_OPTIONS="" 
 local -i VALID_ASCII=0 
 local -i ASCII_CHARS_COUNT=$(grep -oP '[\x00-\x7F]' <<< "${CHAR}" | wc -l)
-  if  ((${ASCII_CHARS_COUNT} == ${#CHAR})) &&  [ "${ORIG_CHAR}" = "${CHAR}" ];  then 
+if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && [ "${ORIG_CHAR}" = "${CHAR}" ] && 
+   [[ ! "${ORIG_CHAR}" =~ ^0x|^0o ]] && { (("${#CHAR}"!=8)) || (($(grep -c "[^01]" <<< "${CHAR}"))); }; then 
  VALID_ASCII=1 
  ASCII_OPTIONS="-t -s" 
 elif (($(check_number "${CHAR}" "${CHECK_BINARY}" "${ASCII_CODE_ERROR_MESG}"))); then 
@@ -282,7 +283,6 @@ else
 fi 
 
 if ((${VALID_ASCII})); then 
- #[[ "${CHAR}" =~ ^0x || "${CHAR}" =~ ^0o ]] && ASCII_OPTIONS="-t" || ASCII_OPTIONS="-t -s" 
  case ${GET_MODE} in 
       ${GET_DECIMAL})
 				CHAR=$(eval "${ASCII_CMD} ${ASCII_OPTIONS} \\${CHAR}" | awk '{print $2}')  
@@ -303,7 +303,6 @@ if ((${VALID_ASCII})); then
 				;; 
  esac 
 fi
-set +x
 } 
 
  ## <arg 1> String - String to trim single ending whitespace from
