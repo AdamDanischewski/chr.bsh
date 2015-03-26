@@ -2,7 +2,7 @@
 
 #############################################################################
 ###########################################################################
-### Created by A.M.Danischewski (c) 2015+ v1.07
+### Created by A.M.Danischewski (c) 2015+ v1.08
 ### Issues: If you find any issues emai1 me at my <first name> dot 
 ###         <my last name> at gmail dot com.  
 ###
@@ -45,6 +45,7 @@ declare  -r  CHECK_FLOAT="%f"
 declare  -r  CHECK_INTEGER="%i"  
 declare  -r  CHECK_HEX="0x%02x" 
 declare  -r  CHECK_OCTAL="%03o" 
+declare  -r  CHECK_BINARY="01" 
 
 function usage() {
 cat <<EOF
@@ -156,6 +157,15 @@ function check_number() {
             echo "${FAIL}"
          fi
          ;;
+     "${CHECK_BINARY}")
+         if ((! $(grep -c "[^${CHECK_BINARY}]" <<< "${NUMBER}"))) && 
+            ((${#NUMBER}==8)); then
+            echo "${PASS}"
+         else
+            ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
+            echo "${FAIL}"
+         fi
+         ;;
      "${CHECK_INTEGER}")
          if ((! $(printf "${CHECK_INTEGER}" "${NUMBER}" &>/dev/random;echo $?))); then
             echo "${PASS}"
@@ -201,8 +211,8 @@ function check_valid_ascii_char() {
 function get_ascii_alpha() {  	  
 local ASCII_CODE_ERROR_MESG="Error Invalid input, valid values are hex (0x[0-9]+), octal (0o[0-9]+) or integer ([0-9]+).." 
 local -i ASCII_CHARS_COUNT=$(grep -oP '[\x00-\x7F]' <<< "${CHAR}" | wc -l)
-
-if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && [ "${ORIG_CHAR}" = "${CHAR}" ] && [[ ! "${ORIG_CHAR}" =~ ^0x|^0o ]]; then 
+if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && [ "${ORIG_CHAR}" = "${CHAR}" ] && 
+   [[ ! "${ORIG_CHAR}" =~ ^0x|^0o ]] && { (("${#CHAR}"!=8)) || (($(grep -c "[^01]" <<< "${CHAR}"))); }; then 
      :;   ## Nothing to do, if by options or however the original character is in the CHAR buffer, don't convert. 
           ## otherwise convert. This is how to distinguish between user input number 7 vs a converted to decimal value.    
 elif (($(grep -c '^0x' <<< "${CHAR}"))); then  
@@ -214,6 +224,12 @@ elif (($(grep -c '^0x' <<< "${CHAR}"))); then
 elif (($(grep -c '^0o' <<< "${CHAR}"))); then  
     if (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}" 0))); then
      CHAR=$(printf $(echo "${CHAR}" | sed 's/0o/\\/'))
+    else 
+     ERROR_FLAG=1
+    fi 
+elif ((! $(grep -c "[^01]" <<< "${CHAR}"))); then  
+    if (($(check_number "${CHAR}" "${CHECK_BINARY}" "${ASCII_CODE_ERROR_MESG}" 0))); then
+     CHAR=$(printf $("${0}" -o "${CHAR}" | sed 's/0o/\\/')) ## Recurse! =) 
     else 
      ERROR_FLAG=1
     fi 
@@ -230,7 +246,6 @@ else
    ERROR_FLAG=1
    exit -1 
 fi
-set +x
 }
 
 ## This function presumes that ascii -t -s <char> produces output 
@@ -246,21 +261,28 @@ local ASCII_CMD="ascii"
 local ASCII_OPTIONS="" 
 local -i VALID_ASCII=0 
 local -i ASCII_CHARS_COUNT=$(grep -oP '[\x00-\x7F]' <<< "${CHAR}" | wc -l)
-  if  ((${ASCII_CHARS_COUNT} == ${#CHAR})); then 
+  if  ((${ASCII_CHARS_COUNT} == ${#CHAR})) &&  [ "${ORIG_CHAR}" = "${CHAR}" ];  then 
  VALID_ASCII=1 
+ ASCII_OPTIONS="-t -s" 
+elif (($(check_number "${CHAR}" "${CHECK_BINARY}" "${ASCII_CODE_ERROR_MESG}"))); then 
+ VALID_ASCII=1 
+ ASCII_OPTIONS="-t"
 elif (($(check_number "${CHAR}" "${CHECK_INTEGER}" "${ASCII_CODE_ERROR_MESG}"))); then 
  VALID_ASCII=1 
+ ASCII_OPTIONS="-t -s" 
 elif (($(check_number "${CHAR}" "${CHECK_HEX}" "${ASCII_CODE_ERROR_MESG}"))); then 
- VALID_ASCII=1                                                      
+ VALID_ASCII=1     
+ ASCII_OPTIONS="-t"                                                 
 elif (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}" 0))); then  ## 0 Turn on error reporting. 
  VALID_ASCII=1 
+ ASCII_OPTIONS="-t"
 else 
  ERROR_FLAG=1 
  exit -1 
 fi 
 
 if ((${VALID_ASCII})); then 
- [[ "${CHAR}" =~ ^0x || "${CHAR}" =~ ^0o ]] && ASCII_OPTIONS="-t" || ASCII_OPTIONS="-t -s" 
+ #[[ "${CHAR}" =~ ^0x || "${CHAR}" =~ ^0o ]] && ASCII_OPTIONS="-t" || ASCII_OPTIONS="-t -s" 
  case ${GET_MODE} in 
       ${GET_DECIMAL})
 				CHAR=$(eval "${ASCII_CMD} ${ASCII_OPTIONS} \\${CHAR}" | awk '{print $2}')  
