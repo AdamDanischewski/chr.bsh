@@ -2,7 +2,7 @@
 
 #############################################################################
 ###########################################################################
-### Created by A.M.Danischewski (c) 2015+ v1.06
+### Created by A.M.Danischewski (c) 2015+ v1.07
 ### Issues: If you find any issues emai1 me at my <first name> dot 
 ###         <my last name> at gmail dot com.  
 ###
@@ -202,7 +202,7 @@ function get_ascii_alpha() {
 local ASCII_CODE_ERROR_MESG="Error Invalid input, valid values are hex (0x[0-9]+), octal (0o[0-9]+) or integer ([0-9]+).." 
 local -i ASCII_CHARS_COUNT=$(grep -oP '[\x00-\x7F]' <<< "${CHAR}" | wc -l)
 
-if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && [ "${ORIG_CHAR}" = "${CHAR}" ]; then 
+if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && [ "${ORIG_CHAR}" = "${CHAR}" ] && [[ ! "${ORIG_CHAR}" =~ ^0x|^0o ]]; then 
      :;   ## Nothing to do, if by options or however the original character is in the CHAR buffer, don't convert. 
           ## otherwise convert. This is how to distinguish between user input number 7 vs a converted to decimal value.    
 elif (($(grep -c '^0x' <<< "${CHAR}"))); then  
@@ -301,7 +301,7 @@ local -i NUM_OPTIONS
  ## Shift it off the parameter array so getopts can process any 
  ## appended options. 
 [[ $# -gt 1 && ! "${1}" =~ ^-. ]] && shift  
-CHAR=$(sed 's/\\/0o/' <<< "${CHAR}") ## Convert octal notation \\001 to 0o001 
+CHAR=$(sed 's/\\[0-9]/0o&/;s/\\/0x5c/' <<< "${CHAR}") ## Convert octal notation \\001 to 0o001 
 let NUM_OPTIONS=${#@}+1
 while getopts ":?HD:x:a:d:o:h:b:" OPTION "$@";  do
      case "$OPTION" in
@@ -400,5 +400,5 @@ process_options "$@ "
 ((${PRINT_FLAG})) && ((! ${PRINT_FLAG_LAST})) && get_ascii_alpha
 ((${CONVERT_FLAG}))                           && get_ascii_code
 ((${PRINT_FLAG})) && ((${PRINT_FLAG_LAST}))   && get_ascii_alpha
-((! ${ERROR_FLAG})) && printf "${CHAR}\n" 
+((! ${ERROR_FLAG})) && printf "${CHAR}" && echo ## To avoid 0x5c \ from escaping the newline. 
 exit 0 
