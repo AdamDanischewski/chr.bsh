@@ -1,0 +1,397 @@
+#!/usr/bin/env bash
+
+#############################################################################
+###########################################################################
+### Created by A.M.Danischewski (c) 2015+ v1.04
+### Issues: If you find any issues emai1 me at my <first name> dot 
+###         <my last name> at gmail dot com.  
+###
+### This is a simple program takes the input of a character and converts 
+### the character to its decimal, binary or hexadecimal ascii code
+### representation. 
+###  
+### This program requires (to work to full capacity) by default: 
+### ascii
+### 
+### This program is free software: you can redistribute it and/or modify
+### it under the terms of the GNU General Public License as published by
+### the Free Software Foundation, either version 3 of the License, or
+### (at your option) any later version.
+###
+### This program is distributed in the hope that it will be useful,
+### but WITHOUT ANY WARRANTY; without even the implied warranty of
+### MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+### GNU General Public License for more details.
+###
+### You should have received a copy of the GNU General Public License
+### along with this program.  If not, see <http://www.gnu.org/licenses/>.
+###########################################################################
+#############################################################################
+declare  -i  DEBUG_MODE=0 
+
+declare      CHAR="${1}"
+declare      OPTION_STR="$@"
+declare  -ir GET_DECIMAL=10  
+declare  -ir GET_HEX=11  
+declare  -ir GET_BINARY=12
+declare  -ir GET_OCTAL=13
+declare  -i  GET_MODE=${GET_HEX} ## Default get mode is HEX. 
+declare  -i  CONVERT_FLAG=0      ## Flag set if conversion is requested.
+declare  -i  PRINT_FLAG=0        ## Flag set if ascii character print is requested.
+declare  -i  PRINT_FLAG_LAST=0   ## Flag set if the last option is print.
+declare  -i  ERROR_FLAG=0        ## Flag set if there is an error processing user input. 
+declare  -r  CHECK_FLOAT="%f"  
+declare  -r  CHECK_INTEGER="%i"  
+declare  -r  CHECK_HEX="0x%02x" 
+declare  -r  CHECK_OCTAL="%03o" 
+
+function usage() {
+cat <<EOF
+
+Usage: ${0##*/} [-D] <-d> <-h|-x> <-b> [-H] <char> [<-a> <code>]
+ 
+       <char>   A valid ascii code value: character, decimal,
+                hexadecimal, octal (0o000 or \\000) 
+OPTIONS:
+          -d    Convert character to decimal 
+          -a    Convert code (hex, octal) to ascii character 
+       -h|-x    Convert character to hexadecimal 
+          -b    Convert character to binary 
+          -o    Convert character to octal 
+          -H    Show help message
+          -D    Turn on debug mode
+          -?    Show usage
+      
+EOF
+} 
+
+function help() {
+cat <<EOF
+
+Description: ${0##*/}
+
+This program can convert an ascii character to ascii code in its 
+decimal, binary or hexadecimal form.  
+
+This program can also convert an ascii code from its hexadecimal or 
+octal form to its corresponding ascii character.
+
+The default mode if no flags are passed in is hexadecimal. 
+
+EOF
+
+usage 
+
+cat <<EOF
+        ## To get the hexadecimal ascii code of the letter 'Z' 
+      \$ ${0##*/} -h Z  
+            or 
+      \$ ${0##*/} -x Z 
+            or 
+      \$ ${0##*/} Z    
+
+        ## Options may be duplicated and compounded in any order       
+      \$ ${0##*/} A -d
+        65
+      \$ ${0##*/} A -d -b
+        01000001
+      \$ ${0##*/} A -d -b -x
+        0x41
+      \$ ${0##*/} A -d -b -x -o
+        0o101
+      \$ ${0##*/} A -d -b -x -o -b
+        01000001
+      \$ ${0##*/} A -d -b -x -o -b -h
+        0x41
+      \$ ${0##*/} A -d -b -x -o -b -h -a
+        A
+
+        ## To get print the ascii character of the letter 'G' by 
+        ## using the hexadecimal representation       
+      \$ ${0##*/} -a 0x47
+
+        ## To get the decimal ascii code of the letter 'Q' using 
+        ## Q's hexadecimal representation 
+      \$ ${0##*/} 0x51 -d 
+
+        ## To get the binary ascii code of the letter 'y' using 
+        ## y's hexadecimal representation 
+      \$ ${0##*/} -b 0x79
+            
+EOF
+}
+
+ ## <arg 1> Number  - Number to check
+ ## <arg 2> String  - Number type to check
+ ## <arg 3> String  - Error message
+ ## <arg 4> Integer - Quiet flag - 1 does, 0 doesnt print errors 
+function check_number() {
+  local NUMBER="$(echo "${1}" | tr '[:upper:]' '[:lower:]')"
+  local NUMBER_TYPE="${2}"
+  local ERROR_MESG="${3}"
+  local FILTERED_NUMBER=$(sed 's/[^.e0-9+oxa-fA-F\^]//g' <<< "${NUMBER}")
+  local -i QUIET=${4:-1} 
+  local -i PASS=1
+  local -i FAIL=0
+    if [[ -z "${NUMBER}" ]]; then 
+        echo "Empty number argument passed to check_number()." 1>&2
+        echo "${ERROR_MESG}" 1>&2
+        echo "${FAIL}"          
+  elif [[ -z "${NUMBER_TYPE}" ]]; then 
+        echo "Empty number type argument passed to check_number()." 1>&2
+        echo "${ERROR_MESG}" 1>&2
+        echo "${FAIL}"          
+  elif [[ ! "${#NUMBER}" -eq "${#FILTERED_NUMBER}" ]]; then 
+        ((! ${QUIET})) && echo "Non numeric characters found in number argument passed to check_number()." 1>&2
+        ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
+        echo "${FAIL}"          
+  else  
+   case "${NUMBER_TYPE}" in
+     "${CHECK_FLOAT}")
+         if ((! $(printf "${CHECK_FLOAT}" "${NUMBER}" &>/dev/random;echo $?))); then
+            echo "${PASS}"
+         else
+            ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
+            echo "${FAIL}"
+         fi
+         ;;
+     "${CHECK_INTEGER}")
+         if ((! $(printf "${CHECK_INTEGER}" "${NUMBER}" &>/dev/random;echo $?))); then
+            echo "${PASS}"
+         else
+            ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
+            echo "${FAIL}"
+         fi
+         ;;
+     "${CHECK_HEX}")
+         if ((! $(printf "${CHECK_HEX}" "${NUMBER}" &>/dev/random;echo $?))) && 
+            [ "$(printf "${CHECK_HEX}" "${NUMBER}")" = "${NUMBER}" ]; then
+            echo "${PASS}"
+         else
+            ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
+            echo "${FAIL}"
+         fi
+         ;;
+     "${CHECK_OCTAL}")
+          if [[ "${NUMBER}" =~ ^0o ]] && ((! $(((8#$(sed 's/^0o//' <<< "${NUMBER}"))) 2>/dev/random && echo 0 || echo $?))); then 
+            echo "${PASS}"
+         else
+            ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
+            echo "${FAIL}"
+         fi
+         ;;
+                      *)
+         echo "Invalid number type format: ${NUMBER_TYPE} to check_number()." 1>&2
+         echo "${FAIL}"
+         ;;
+    esac
+ fi 
+}
+
+function check_valid_ascii_char() { 
+## this function should check to see if the char is actually suitable to 
+## be converted to ascii, 
+## Another check that is needed is escaping of special characters
+	:; 
+}
+
+## Idea is to change CHAR if the -a flag is passed in and automatically convert
+## if another flag is there, last flag takes precedence  
+function get_ascii_alpha() {  	  
+local ASCII_CODE_ERROR_MESG="Error Invalid input, valid values are hex (0x[0-9]+), octal (0o[0-9]+) or integer ([0-9]+).." 
+  if  (($(grep -c '^[[:alpha:]]*$' <<< "${CHAR}"))); then 
+  :;   ## Nothing to do.
+elif (($(grep -c '^0x' <<< "${CHAR}"))); then  
+    if (($(check_number "${CHAR}" "${CHECK_HEX}" "${ASCII_CODE_ERROR_MESG}" 0))); then 
+     CHAR=$(printf $("${0}" -o "${CHAR}" | sed 's/0o/\\/')) ## Recurse! =) 
+    else 
+     ERROR_FLAG=1
+    fi      
+elif (($(grep -c '^0o' <<< "${CHAR}"))); then  
+    if (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}" 0))); then
+     CHAR=$(printf $(echo "${CHAR}" | sed 's/0o/\\/'))
+    else 
+     ERROR_FLAG=1
+    fi 
+elif (($(grep -c '^[0-9]*$' <<< "${CHAR}"))); then  
+    if (($(check_number "${CHAR}" "${CHECK_INTEGER}" "${ASCII_CODE_ERROR_MESG}" 0))); then 
+      CHAR=$(printf $(ascii -t "${CHAR}" | awk "\$2~${CHAR}{print \$4}" | sed 's/0o/\\/'))  
+    else 
+     ERROR_FLAG=1
+    fi
+else 
+   echo -e "${ASCII_CODE_ERROR_MESG}" 1>&2
+   ERROR_FLAG=1
+   exit -1 
+fi
+set +x
+}
+
+## This function presumes that ascii -t -s <char> produces output 
+## in the following form:  
+## ??  decimal hex    octal    binary 
+## 7/4   116   0x74   0o164   01110100
+function get_ascii_code() { 
+local ERROR_MESG="Error - ${0}.\nMode $GET_MODE not found." 
+local ASCII_CODE_ERROR_MESG=$(echo -en "Error Invalid Input- ${0}: \nInvalid "\
+                              "Ascii code parameter.\nValid values are hex (0x[0-9]+)"\
+                              ", octal (0o[0-9]+) or integer ([0-9]+).") 
+local ASCII_CMD="ascii" 
+local ASCII_OPTIONS="" 
+local -i VALID_ASCII=0 
+if (($(grep -c '^[[:alpha:]]*$' <<< "${CHAR}"))); then 
+ VALID_ASCII=1 
+elif (($(check_number "${CHAR}" "${CHECK_INTEGER}" "${ASCII_CODE_ERROR_MESG}"))); then 
+ VALID_ASCII=1 
+elif (($(check_number "${CHAR}" "${CHECK_HEX}" "${ASCII_CODE_ERROR_MESG}"))); then 
+ VALID_ASCII=1                                                      
+elif (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}" 0))); then  ## 0 Turn on error reporting. 
+ VALID_ASCII=1 
+else 
+ ERROR_FLAG=1 
+ exit -1 
+fi 
+
+if ((${VALID_ASCII})); then 
+ [[ "${CHAR}" =~ ^0x || "${CHAR}" =~ ^0o ]] && ASCII_OPTIONS="-t" || ASCII_OPTIONS="-t -s" 
+ case ${GET_MODE} in 
+      ${GET_DECIMAL})
+				CHAR=$(eval "${ASCII_CMD} ${ASCII_OPTIONS} ${CHAR}" | awk '{print $2}')  
+				;; 
+          ${GET_HEX}) 
+				CHAR=$(eval "${ASCII_CMD} ${ASCII_OPTIONS} ${CHAR}" | awk '{print $3}')                                
+				;; 
+          ${GET_OCTAL}) 
+				CHAR=$(eval "${ASCII_CMD} ${ASCII_OPTIONS} ${CHAR}" | awk '{print $4}')                                
+				;; 
+       ${GET_BINARY}) 
+				CHAR=$(eval "${ASCII_CMD} ${ASCII_OPTIONS} ${CHAR}" | awk '{print $5}')                      
+				;; 
+                   *) 
+				echo -e "${ERROR_MESG}" 1>&2
+				ERROR_FLAG=1
+				exit -1 
+				;; 
+ esac 
+fi
+set +x
+} 
+
+ ## <arg 1> String - String to trim single ending whitespace from
+function trim_string() { 
+ local STRING="${1}" 
+ echo -En $(sed 's/ $//' <<< "${STRING}") || echo "Error in trim_string() expected a sensible string, found: ${STRING}" 1>&2
+} 
+
+function process_options() { 
+local OPTIND OPTERR=0 OPTARG OPTION a d b h o H D
+local ERROR_MSG=""  
+local OPTION_VAL=""
+local EXIT_VALUE=0 
+local -i NUM_OPTIONS
+ ## If there are more than 1 argument and the first does not 
+ ## begin with a - then presume it is the character parameter. 
+ ## Shift it off the parameter array so getopts can process any 
+ ## appended options. 
+[[ $# -gt 1 && ! "${1}" =~ ^-. ]] && shift  
+CHAR=$(sed 's/\\/0o/' <<< "${CHAR}") ## Convert octal notation \\001 to 0o001 
+let NUM_OPTIONS=${#@}+1
+while getopts ":?HD:x:a:d:o:h:b:" OPTION "$@";  do
+     case "$OPTION" in
+         H)
+             help | more 
+             exit 0
+             ;;
+         D)
+             OPTION_VAL=$(((${NUM_OPTIONS}==${OPTIND})) && trim_string "${OPTARG##*=}" || echo -En "${OPTARG##*=}")
+             if [[ ! -z "${OPTION_VAL}" ]]; then 
+              if [[ "${OPTION_VAL}" =~ ^-. ]]; then  
+                let OPTIND=${OPTIND}-1 ## It is further options, since it starts with a dash. 
+              else 
+                CHAR="${OPTION_VAL}"   ## Presume it is the character argument. 
+              fi 
+             fi 
+             DEBUGMODE=1
+             set -xuo pipefail
+             ;;
+         a)
+             OPTION_VAL=$(((${NUM_OPTIONS}==${OPTIND})) && trim_string "${OPTARG##*=}" || echo -En "${OPTARG##*=}")
+             if [[ ! -z "${OPTION_VAL}" ]]; then 
+              if [[ "${OPTION_VAL}" =~ ^-. ]]; then  
+                let OPTIND=${OPTIND}-1 ## It is further options, since it starts with a dash. 
+              else 
+                CHAR="${OPTION_VAL}"   ## Presume it is the character argument. 
+              fi 
+             fi 
+             PRINT_FLAG=1
+             ((${NUM_OPTIONS}==${OPTIND})) && PRINT_FLAG_LAST=1 
+             ;;
+         d)
+             OPTION_VAL=$(((${NUM_OPTIONS}==${OPTIND})) && trim_string "${OPTARG##*=}" || echo -En "${OPTARG##*=}")
+             if [[ ! -z "${OPTION_VAL}" ]]; then 
+              if [[ "${OPTION_VAL}" =~ ^-. ]]; then  
+                let OPTIND=${OPTIND}-1 ## It is further options, since it starts with a dash. 
+              else 
+                CHAR="${OPTION_VAL}"   ## Presume it is the character argument. 
+              fi 
+             fi 
+             GET_MODE=${GET_DECIMAL} 
+             CONVERT_FLAG=1
+             ;;
+         o)
+             OPTION_VAL=$(((${NUM_OPTIONS}==${OPTIND})) && trim_string "${OPTARG##*=}" || echo -En "${OPTARG##*=}")
+             if [[ ! -z "${OPTION_VAL}" ]]; then 
+              if [[ "${OPTION_VAL}" =~ ^-. ]]; then  
+                let OPTIND=${OPTIND}-1 ## It is further options, since it starts with a dash. 
+              else 
+                CHAR="${OPTION_VAL}"   ## Presume it is the character argument. 
+              fi 
+             fi 
+             GET_MODE=${GET_OCTAL} 
+             CONVERT_FLAG=1
+             ;;
+         b)
+             OPTION_VAL=$(((${NUM_OPTIONS}==${OPTIND})) && trim_string "${OPTARG##*=}" || echo -En "${OPTARG##*=}")
+             if [[ ! -z "${OPTION_VAL}" ]]; then 
+              if [[ "${OPTION_VAL}" =~ ^-. ]]; then  
+                let OPTIND=${OPTIND}-1 ## It is further options, since it starts with a dash. 
+              else 
+                CHAR="${OPTION_VAL}"   ## Presume it is the character argument. 
+              fi 
+             fi 
+             GET_MODE=${GET_BINARY} 
+             CONVERT_FLAG=1
+             ;;
+         x) 
+             ;&             
+         h)
+             OPTION_VAL=$(((${NUM_OPTIONS}==${OPTIND})) && trim_string "${OPTARG##*=}" || echo -En "${OPTARG##*=}")
+             if [[ ! -z "${OPTION_VAL}" ]]; then 
+              if [[ "${OPTION_VAL}" =~ ^-. ]]; then  
+                let OPTIND=${OPTIND}-1 ## It is further options, since it starts with a dash. 
+              else 
+                CHAR="${OPTION_VAL}"   ## Presume it is the character argument. 
+              fi 
+             fi 
+             GET_MODE=${GET_HEX} 
+             CONVERT_FLAG=1
+             ;;
+         *) 
+             EXIT_VALUE=-1
+             ;&                  
+         ?)
+             usage
+             exit ${EXIT_VALUE}
+             ;;
+     esac
+done
+[[ -z "${CHAR}" || "${CHAR}" =~ ^-. ]] && { usage; exit 0; } 
+((! ${PRINT_FLAG})) && CONVERT_FLAG=1 ## Default to converting if printing is not specified.
+} 
+
+process_options "$@ " 
+((${PRINT_FLAG})) && ((! ${PRINT_FLAG_LAST})) && get_ascii_alpha
+((${CONVERT_FLAG}))                           && get_ascii_code
+((${PRINT_FLAG})) && ((${PRINT_FLAG_LAST}))   && get_ascii_alpha
+((! ${ERROR_FLAG})) && printf "${CHAR}\n" 
+exit 0 
