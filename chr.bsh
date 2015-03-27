@@ -2,7 +2,7 @@
 
 #############################################################################
 ###########################################################################
-### Created by A.M.Danischewski (c) 2015+ v1.10
+### Created by A.M.Danischewski (c) 2015+ v1.11
 ### Issues: If you find any issues emai1 me at my <first name> dot 
 ###         <my last name> at gmail dot com.  
 ###
@@ -10,6 +10,16 @@
 ### the character to its decimal, binary or hexadecimal ascii code
 ### representation. 
 ###  
+### Not very tested but implemented - this program tries to accept 
+### redirected and piped input. Mileage may vary, let me know if you 
+### find any issues.   
+### E.g. chr.bsh -o <<< a    or   echo a | chr.bsh -o -x -d -x   
+### E.g. Also accepts more than a single character and converts each:   
+###      chr.bsh -b <<< abc    or   echo abc | chr.bsh -o -x -d -x -b   
+###		 01100001  <<- 'a' 
+###		 01100010  <<- 'b' 
+###		 01100011  <<- 'c' 
+### 
 ### This program requires (to work to full capacity) by default: 
 ### ascii
 ### 
@@ -31,7 +41,7 @@ declare  -i  DEBUG_MODE=0
 
 declare      CHAR="${1}"
 declare      ORIG_CHAR="${1}"
-declare      OPTION_STR="$@"
+declare      OPTION_STR=""
 declare  -ir GET_DECIMAL=10  
 declare  -ir GET_HEX=11  
 declare  -ir GET_BINARY=12
@@ -46,6 +56,13 @@ declare  -r  CHECK_INTEGER="%i"
 declare  -r  CHECK_HEX="0x%02x" 
 declare  -r  CHECK_OCTAL="%03o" 
 declare  -r  CHECK_BINARY="01" 
+
+  ## Tentative handling of piped input and redirects.  
+if readlink /proc/$$/fd/0 | grep -Eq "^pipe:|deleted"; then
+ while IFS= read -r PIPED_INPUT || break; do 
+  OPTION_STR="${OPTION_STR} ${PIPED_INPUT} "
+ done 
+fi 
 
 function usage() {
 cat <<EOF
@@ -109,12 +126,12 @@ cat <<EOF
         A
 
         ## To get print the ascii character of the letter 'G' by 
-        ## using the hexadecimal representation       
-      \$ ${0##*/} -a 0x47
+        ## using the hexadecimal representation piped in      
+      \$ echo 0x47 | ${0##*/} -a 
 
         ## To get the decimal ascii code of the letter 'Q' using 
         ## Q's hexadecimal representation 
-      \$ ${0##*/} 0x51 -d 
+      \$ ${0##*/} -d  <<< 0x51 
 
         ## To get the binary ascii code of the letter 'y' using 
         ## y's hexadecimal representation 
@@ -167,7 +184,8 @@ function check_number() {
          fi
          ;;
      "${CHECK_INTEGER}")
-         if ((! $(printf "${CHECK_INTEGER}" "${NUMBER}" &>/dev/random;echo $?))); then
+         if ((! $(printf "${CHECK_INTEGER}" "${NUMBER}" &>/dev/random;echo $?))) && 
+           ((! $(grep -c "[^0-9]" <<< "${NUMBER}"))); then
             echo "${PASS}"
          else
             ((! ${QUIET})) && echo "${ERROR_MESG}" 1>&2
@@ -261,7 +279,7 @@ local ASCII_CMD="ascii"
 local ASCII_OPTIONS="" 
 local -i VALID_ASCII=0 
 local -i ASCII_CHARS_COUNT=$(grep -oP '[\x00-\x7F]' <<< "${CHAR}" | wc -l)
-if ((${ASCII_CHARS_COUNT} == ${#CHAR})) ## && [ "${ORIG_CHAR}" = "${CHAR}" ] && 
+if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && ((! ${CONVERT_FLAG})) && ## [ "${ORIG_CHAR}" = "${CHAR}" ] && 
    [[ ! "${ORIG_CHAR}" =~ ^0x|^0o ]] && { (("${#CHAR}"!=8)) || (($(grep -c "[^01]" <<< "${CHAR}"))); }; then 
  VALID_ASCII=1 
  ASCII_OPTIONS="-t -s" 
@@ -274,9 +292,12 @@ elif (($(check_number "${CHAR}" "${CHECK_INTEGER}" "${ASCII_CODE_ERROR_MESG}")))
 elif (($(check_number "${CHAR}" "${CHECK_HEX}" "${ASCII_CODE_ERROR_MESG}"))); then 
  VALID_ASCII=1     
  ASCII_OPTIONS="-t"                                                 
-elif (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}" 0))); then  ## 0 Turn on error reporting. 
+elif (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}"))); then  ## 0 Turn on error reporting. 
  VALID_ASCII=1 
  ASCII_OPTIONS="-t"
+elif ((${ASCII_CHARS_COUNT} == ${#CHAR})); then ## As long as they are in ASCII range process the whole string. 
+ VALID_ASCII=1 
+ ASCII_OPTIONS="-t -s"  
 else 
  ERROR_FLAG=1 
  exit -1 
@@ -324,7 +345,7 @@ local -i NUM_OPTIONS
 [[ $# -gt 1 && ! "${1}" =~ ^-. ]] && shift  
 CHAR=$(sed 's/\\[0-9]/0o&/;s/\\/0x5c/' <<< "${CHAR}") ## Convert octal notation \\001 to 0o001 
 let NUM_OPTIONS=${#@}+1
-while getopts ":?HD:x:a:d:o:h:b:" OPTION "$@";  do
+while getopts ":?HD:x:a:d:o:h:b:" OPTION "$@${OPTION_STR}";  do
      case "$OPTION" in
          H)
              help | more 
