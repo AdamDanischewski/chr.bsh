@@ -2,7 +2,7 @@
 
 #############################################################################
 ###########################################################################
-### Created by A.M.Danischewski (c) 2015+ v1.13
+### Created by A.M.Danischewski (c) 2015+ v1.15
 ### Issues: If you find any issues emai1 me at my <first name> dot 
 ###         <my last name> at gmail dot com.  
 ###
@@ -256,7 +256,7 @@ elif (($(grep -c '^0o' <<< "${CHAR}"))); then
            ERROR_FLAG=1
          fi 
       done 
-elif ((! $(grep -c "[^01]" <<< "${CHAR}"))); then  
+elif ((! $(grep -c "[^01 \n]" <<< "${CHAR}"))) && ((8<=${#CHAR})); then  
       CHAR="" 
       for each_line in ${MULTICHAR}; do
          if (($(check_number "${each_line}" "${CHECK_BINARY}" "${ASCII_CODE_ERROR_MESG}" 0))); then
@@ -291,6 +291,9 @@ fi
 ## in the following form:  
 ## ??  decimal hex    octal    binary 
 ## 7/4   116   0x74   0o164   01110100
+## THis needs to be changed so the ascii_options are checked individually line by line 
+## at the moment it presumes the entire block of characters is of the same type based on 
+## the first one. Probably can wrap a loop around it.. 
 function get_ascii_code() { 
 local ERROR_MESG="Error - ${0}.\nMode $GET_MODE not found." 
 local ASCII_CODE_ERROR_MESG=$(echo -en "Error Invalid Input- ${0}: \nInvalid "\
@@ -304,16 +307,16 @@ if ((${ASCII_CHARS_COUNT} == ${#CHAR})) && ((! ${CONVERT_FLAG})) && ## [ "${ORIG
    [[ ! "${ORIG_CHAR}" =~ ^0x|^0o ]] && { (("${#CHAR}"!=8)) || (($(grep -c "[^01]" <<< "${CHAR}"))); }; then 
  VALID_ASCII=1 
  ASCII_OPTIONS="-t -s" 
-elif (($(check_number "${CHAR}" "${CHECK_BINARY}" "${ASCII_CODE_ERROR_MESG}"))); then 
+elif ((! $(grep -c "[^01 \n]" <<< "${CHAR}"))) && ((8<=${#CHAR})); then  
  VALID_ASCII=1 
  ASCII_OPTIONS="-t"
-elif (($(check_number "${CHAR}" "${CHECK_INTEGER}" "${ASCII_CODE_ERROR_MESG}"))); then 
+elif (($(grep -c '^[0-9]*$' <<< "${CHAR}"))); then   
  VALID_ASCII=1 
  ASCII_OPTIONS="-t -s" 
-elif (($(check_number "${CHAR}" "${CHECK_HEX}" "${ASCII_CODE_ERROR_MESG}"))); then 
+elif (($(grep -c '^0x' <<< "${CHAR}"))); then  
  VALID_ASCII=1     
- ASCII_OPTIONS="-t"                                                 
-elif (($(check_number "${CHAR}" "${CHECK_OCTAL}" "${ASCII_CODE_ERROR_MESG}"))); then  ## 0 Turn on error reporting. 
+ ASCII_OPTIONS="-t"
+elif (($(grep -c '^0o' <<< "${CHAR}"))); then                                                    
  VALID_ASCII=1 
  ASCII_OPTIONS="-t"
 elif ((${ASCII_CHARS_COUNT} == ${#CHAR})); then ## As long as they are in ASCII range process the whole string. 
