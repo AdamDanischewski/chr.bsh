@@ -2,7 +2,7 @@
 
 #############################################################################
 ###########################################################################
-### Created by A.M.Danischewski (c) 2015+ v1.16
+### Created by A.M.Danischewski (c) 2015+ v1.18
 ### Issues: If you find any issues emai1 me at my <first name> dot 
 ###         <my last name> at gmail dot com.  
 ###
@@ -56,6 +56,7 @@ declare  -r  CHECK_INTEGER="%i"
 declare  -r  CHECK_HEX="0x%02x" 
 declare  -r  CHECK_OCTAL="%03o" 
 declare  -r  CHECK_BINARY="01" 
+declare      PIPED_INPUT=""
 
   ## Tentative handling of piped input and redirects.  
 if readlink /proc/$$/fd/0 | grep -Eq "^pipe:|deleted"; then
@@ -139,6 +140,13 @@ cat <<EOF
             
 EOF
 }
+
+
+#function unit_test() { 
+ ## for a in ASCII CODE RANGE; DO 
+ ##  compare conversions to known true values
+ #i=0 && for a in {33..126}; do myarr[i++]=$(chr -a "$a"); done
+#} 
 
  ## <arg 1> Number  - Number to check
  ## <arg 2> String  - Number type to check
@@ -286,6 +294,14 @@ else
    exit -1 
 fi
 }
+
+function convert_decimal_to_char() { 
+ if grep -q '^[0-9]\{2,3\}$' <<< "${CHAR}"; then 
+   if (($CHAR<128)); then 
+     CHAR=$(ascii -t "${CHAR}" | awk "\$2 ~ ${CHAR} {print \$4}")
+   fi 
+ fi 
+}  
 
 ## This function presumes that ascii -t -s <char> produces output 
 ## in the following form:  
@@ -460,6 +476,7 @@ while getopts ":?HD:x:a:d:o:h:b:" OPTION "$@${OPTION_STR}";  do
 done
 [[ -z "${CHAR}" || "${CHAR}" =~ ^-. ]] && { usage; exit 0; } 
 ((! ${PRINT_FLAG})) && CONVERT_FLAG=1 ## Default to converting if printing is not specified.
+convert_decimal_to_char ## First filter for decimals
 } 
 
 process_options "$@ " 
